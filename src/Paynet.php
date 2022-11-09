@@ -51,7 +51,7 @@ class Paynet
         $this->login();
     }
 
-    public function getServices(int $last_update_date)
+    public function getServices(int $last_update_date): UserInvalid|ServicesResponse
     {
         $data = $this->sendRequest('getServices', [
             'last_update_date' => $last_update_date
@@ -81,17 +81,27 @@ class Paynet
         });
     }
 
-    public function changePassword(string $old_password, string $new_password): ?LoginResponse
+    public function changePassword(string $old_password, string $new_password): UserInvalid|LoginResponse
     {
         $data = $this->sendRequest('changePassword', [
             'old_password' => $old_password,
             'new_password' => $new_password,
         ]);
 
-        return new LoginResponse($data);
+        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
+            return new UserInvalid();
+        }
+
+        return new LoginResponse(
+            $data['result']['agentId'],
+            $data['result']['terminalId'],
+            $data['result']['userId'],
+            $data['result']['userLogin'],
+            $data['result']['token']
+        );
     }
 
-    public function performTransaction($params)
+    public function performTransaction($params): PerformTransactionResponse|InvalidTransactionParameters|UserInvalid
     {
         $data = $this->sendRequest('performTransaction', $params);
 
@@ -113,7 +123,7 @@ class Paynet
         );
     }
 
-    public function checkTransactionByTransactionId(int $transaction_id, string $time)
+    public function checkTransactionByTransactionId(int $transaction_id, string $time): PerformTransactionResponse|UserInvalid
     {
         $data = $this->sendRequest('checkTransaction', [
             'transaction_id' => $transaction_id,
@@ -133,7 +143,7 @@ class Paynet
         );
     }
 
-    public function checkTransactionByAgentId(int $id)
+    public function checkTransactionByAgentId(int $id): PerformTransactionResponse|TransactionNotFound
     {
         $data = $this->sendRequest('checkTransactionByAgentId', [
             'id' => $id
@@ -152,7 +162,7 @@ class Paynet
         );
     }
 
-    public function detailedReportByPeriod(string $start_date, string $end_date)
+    public function detailedReportByPeriod(string $start_date, string $end_date): UserInvalid|DetailReportByPeriodResponse
     {
         $data = $this->sendRequest('summaryReportByDate', [
             "start_date" => $start_date,
@@ -170,7 +180,7 @@ class Paynet
         );
     }
 
-    public function detailedReportById(string $beginId, string $endId, $service_id = null)
+    public function detailedReportById(string $beginId, string $endId, $service_id = null): UserInvalid|DetailReportByPeriodResponse
     {
         $data = $this->sendRequest('detailedReportById', [
             "start_id" => $beginId,
@@ -189,7 +199,7 @@ class Paynet
         );
     }
 
-    public function detailedReportByServiceId(string $beginId, string $endId, int $service_id)
+    public function detailedReportByServiceId(string $beginId, string $endId, int $service_id): UserInvalid|array
     {
         $data = $this->sendRequest('detailedReportById', [
             "start_id" => $beginId,
@@ -220,7 +230,7 @@ class Paynet
         return $res;
     }
 
-    public function cancelTransaction(string $transaction_id)
+    public function cancelTransaction(string $transaction_id): CancelTransactionResponse|UserInvalid
     {
         $data = $this->sendRequest('cancelTransaction', [
             "transaction_id" => $transaction_id,
@@ -239,7 +249,7 @@ class Paynet
         );
     }
 
-    public function reportTransaction(string $start_date, string $end_date, int $service_id, int $page = 0, int $count = 20)
+    public function reportTransaction(string $start_date, string $end_date, int $service_id, int $page = 0, int $count = 20): UserInvalid|array
     {
         $data = $this->sendRequest('detailedReportByDateTimeAndServiceId', [
             "start_date" => $start_date,
