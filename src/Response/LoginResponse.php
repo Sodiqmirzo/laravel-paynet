@@ -15,10 +15,9 @@ class LoginResponse extends Data
     public function __construct(
         public int $agentId,
         public string $terminalId,
-        public int    $userId,
+        public int $userId,
         public string $userLogin,
         public string $token,
-    )
-    {
+    ) {
     }
 }
