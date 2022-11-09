@@ -8,12 +8,12 @@ use Ramsey\Uuid\Uuid;
 use Uzbek\Paynet\Exceptions\InvalidTransactionParameters;
 use Uzbek\Paynet\Exceptions\TokenNotFound;
 use Uzbek\Paynet\Exceptions\TransactionNotFound;
+use Uzbek\Paynet\Exceptions\Unauthorized;
 use Uzbek\Paynet\Exceptions\UserInvalid;
 use Uzbek\Paynet\Response\CancelTransactionResponse;
 use Uzbek\Paynet\Response\DetailedReportByServiceId;
 use Uzbek\Paynet\Response\DetailReportByPeriodResponse;
 use Uzbek\Paynet\Response\LoginResponse;
-use Uzbek\Paynet\Response\PaynetTransactions;
 use Uzbek\Paynet\Response\PerformTransactionResponse;
 use Uzbek\Paynet\Response\ServicesResponse;
 
@@ -284,17 +284,13 @@ class Paynet
 
         $uid = $this->generateUuid();
 
-        $req = [
+        $res = $this->client->post($url, [
             "jsonrpc" => "2.0",
             "method" => $method,
             "params" => $params,
             "id" => $uid,
             "token" => $this->token,
-        ];
-
-        $res = $this->client->post($url, [
-            'json' => $req
-        ])->json();
+        ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
 
         return $res;
     }
@@ -307,6 +303,18 @@ class Paynet
 
     private static function catchHttpRequestError($res, $e)
     {
+        if ($res['error']['code'] === -9999) {
+            return new Unauthorized();
+        }
+        /*if ($res['error']['code'] === -9999) {
+            return new Unauthorized();
+        }
+        if ($res['error']['code'] === -10000) {
+            return new UserInvalid();
+        }
+        if ($res['error']['code'] === -12007) {
+            return new TransactionNotFound();
+        }*/
         throw $e;
     }
 }
