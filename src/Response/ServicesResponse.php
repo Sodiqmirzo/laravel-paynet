@@ -15,7 +15,6 @@ class ServicesResponse extends Data
     public function __construct(
         public int $lastUpdatedAtUtc,
         public array $categories,
-    )
-    {
+    ) {
     }
 }

@@ -17,8 +17,7 @@ class CancelTransactionResponse extends Data
         public string $status,
         public string $statusText,
         public string $time,
-        public array  $response,
-    )
-    {
+        public array $response,
+    ) {
     }
 }

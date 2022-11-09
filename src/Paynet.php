@@ -20,8 +20,11 @@ use Uzbek\Paynet\Response\ServicesResponse;
 class Paynet
 {
     protected mixed $config;
+
     private ?string $token = null;
+
     private ?string $last_uid = null;
+
     private int $tokenLifeTime;
 
     protected string $username;
@@ -40,12 +43,12 @@ class Paynet
         $this->terminalId = $this->config['terminal_id'];
         $this->tokenLifeTime = $this->config['token_life_time'] ?? 0;
 
-        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '') . '://' . ($this->config['proxy_host'] ?? '') . ':' . ($this->config['proxy_port'] ?? '')) ?? '';
+        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '').'://'.($this->config['proxy_host'] ?? '').':'.($this->config['proxy_port'] ?? '')) ?? '';
         $options = is_string($proxy_url) && str_contains($proxy_url, '://') && strlen($proxy_url) > 12 ? ['proxy' => $proxy_url] : [];
 
         $this->client = Http::baseUrl($this->config['base_url'])->withHeaders([
             'Content-Type' => 'application/json',
-            'Accept' => 'application/json'
+            'Accept' => 'application/json',
         ])->withOptions($options);
 
         $this->login();
@@ -54,7 +57,7 @@ class Paynet
     public function getServices(int $last_update_date)
     {
         $data = $this->sendRequest('getServices', [
-            'last_update_date' => $last_update_date
+            'last_update_date' => $last_update_date,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -70,7 +73,7 @@ class Paynet
             $data = $this->sendRequest('login', [
                 'username' => $this->username,
                 'password' => $this->password,
-                'terminal_id' => $this->terminalId
+                'terminal_id' => $this->terminalId,
             ]);
 
             if (empty($data['result']['token'])) {
@@ -100,7 +103,7 @@ class Paynet
         }
 
         if (isset($data['result']['transactionId'], $data['result']['status'], $data['result']['response'])
-            && is_null($data['result']['transactionId']) && $data['result']['status'] === "1" && is_null($data['result']['response'])) {
+            && is_null($data['result']['transactionId']) && $data['result']['status'] === '1' && is_null($data['result']['response'])) {
             return new InvalidTransactionParameters();
         }
 
@@ -136,7 +139,7 @@ class Paynet
     public function checkTransactionByAgentId(int $id)
     {
         $data = $this->sendRequest('checkTransactionByAgentId', [
-            'id' => $id
+            'id' => $id,
         ]);
 
         if (isset($data['error']) && $data['error']['code'] === -12007) {
@@ -155,8 +158,8 @@ class Paynet
     public function detailedReportByPeriod(string $start_date, string $end_date)
     {
         $data = $this->sendRequest('summaryReportByDate', [
-            "start_date" => $start_date,
-            "end_date" => $end_date,
+            'start_date' => $start_date,
+            'end_date' => $end_date,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -173,9 +176,9 @@ class Paynet
     public function detailedReportById(string $beginId, string $endId, $service_id = null)
     {
         $data = $this->sendRequest('detailedReportById', [
-            "start_id" => $beginId,
-            "end_id" => $endId,
-            "service_id" => (string)$service_id,
+            'start_id' => $beginId,
+            'end_id' => $endId,
+            'service_id' => (string) $service_id,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -192,9 +195,9 @@ class Paynet
     public function detailedReportByServiceId(string $beginId, string $endId, int $service_id)
     {
         $data = $this->sendRequest('detailedReportById', [
-            "start_id" => $beginId,
-            "end_id" => $endId,
-            "service_id" => $service_id,
+            'start_id' => $beginId,
+            'end_id' => $endId,
+            'service_id' => $service_id,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -223,7 +226,7 @@ class Paynet
     public function cancelTransaction(string $transaction_id)
     {
         $data = $this->sendRequest('cancelTransaction', [
-            "transaction_id" => $transaction_id,
+            'transaction_id' => $transaction_id,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -242,11 +245,11 @@ class Paynet
     public function reportTransaction(string $start_date, string $end_date, int $service_id, int $page = 0, int $count = 20)
     {
         $data = $this->sendRequest('detailedReportByDateTimeAndServiceId', [
-            "start_date" => $start_date,
-            "end_date" => $end_date,
-            "service_id" => $service_id,
-            "page" => $page,
-            "count" => $count,
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+            'service_id' => $service_id,
+            'page' => $page,
+            'count' => $count,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -275,7 +278,8 @@ class Paynet
     public function getLogo(int $provider_id, int $size = 128)
     {
         $query = ['providerId' => $provider_id, 'size' => $size];
-        return $this->client->get('/gw/getLogo?' . http_build_query($query));
+
+        return $this->client->get('/gw/getLogo?'.http_build_query($query));
     }
 
     public function sendRequest($method, $params = [])
@@ -285,12 +289,12 @@ class Paynet
         $uid = $this->generateUuid();
 
         $res = $this->client->post($url, [
-            "jsonrpc" => "2.0",
-            "method" => $method,
-            "params" => $params,
-            "id" => $uid,
-            "token" => $this->token,
-        ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
+            'jsonrpc' => '2.0',
+            'method' => $method,
+            'params' => $params,
+            'id' => $uid,
+            'token' => $this->token,
+        ])->throw(fn ($r, $e) => self::catchHttpRequestError($r, $e))->json();
 
         return $res;
     }
@@ -298,6 +302,7 @@ class Paynet
     private function generateUuid(): string
     {
         $this->last_uid = Uuid::uuid4();
+
         return $this->last_uid;
     }
 

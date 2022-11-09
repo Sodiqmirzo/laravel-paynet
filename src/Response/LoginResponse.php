@@ -10,5 +10,4 @@ namespace Uzbek\Paynet\Response;
 
 class LoginResponse extends BaseResponse
 {
-
 }

@@ -10,5 +10,4 @@ namespace Uzbek\Paynet\Exceptions;
 
 class TokenNotFound extends \Exception
 {
-
 }

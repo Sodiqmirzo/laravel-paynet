@@ -16,7 +16,6 @@ class DetailReportByPeriodResponse extends Data
         public int $transactionCount,
         public int $transactionSum,
         public int $commissionFeeSum,
-    )
-    {
+    ) {
     }
 }
