@@ -9,13 +9,15 @@ use Uzbek\Paynet\Exceptions\{InvalidTransactionParameters,
     TokenNotFound,
     TransactionNotFound,
     Unauthorized,
-    UserInvalid};
+    UserInvalid
+};
 use Uzbek\Paynet\Response\{CancelTransactionResponse,
     DetailedReportByServiceId,
     DetailReportByPeriodResponse,
     LoginResponse,
     PerformTransactionResponse,
-    ServicesResponse};
+    ServicesResponse
+};
 
 class Paynet
 {
@@ -25,7 +27,7 @@ class Paynet
 
     private ?string $last_uid = null;
 
-    private int $tokenLifeTime;
+    private int $tokenLifeTime = 60 * 60 * 24;
 
     protected string $username;
 
@@ -43,7 +45,7 @@ class Paynet
         $this->terminalId = $this->config['terminal_id'];
         $this->tokenLifeTime = $this->config['token_life_time'] ?? 0;
 
-        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '').'://'.($this->config['proxy_host'] ?? '').':'.($this->config['proxy_port'] ?? '')) ?? '';
+        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '') . '://' . ($this->config['proxy_host'] ?? '') . ':' . ($this->config['proxy_port'] ?? '')) ?? '';
         $options = is_string($proxy_url) && str_contains($proxy_url, '://') && strlen($proxy_url) > 12 ? ['proxy' => $proxy_url] : [];
 
         $this->client = Http::baseUrl($this->config['base_url'])->withHeaders([
@@ -57,7 +59,7 @@ class Paynet
     public function getServices(int $last_update_date): UserInvalid|ServicesResponse
     {
         $data = $this->sendRequest('getServices', [
-            'last_update_date' => $last_update_date,
+            'last_updated_at' => $last_update_date,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -188,7 +190,7 @@ class Paynet
         $data = $this->sendRequest('detailedReportById', [
             'start_id' => $beginId,
             'end_id' => $endId,
-            'service_id' => (string) $service_id,
+            'service_id' => (string)$service_id,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
@@ -289,7 +291,7 @@ class Paynet
     {
         $query = ['providerId' => $provider_id, 'size' => $size];
 
-        return $this->client->get('/gw/getLogo?'.http_build_query($query));
+        return $this->client->get('/gw/getLogo?' . http_build_query($query));
     }
 
     public function sendRequest($method, $params = [])
@@ -304,7 +306,7 @@ class Paynet
             'params' => $params,
             'id' => $uid,
             'token' => $this->token,
-        ])->throw(fn ($r, $e) => self::catchHttpRequestError($r, $e))->json();
+        ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
 
         return $res;
     }
