@@ -110,10 +110,10 @@ class Paynet
     public function performTransaction(string $service_id, array $fields)
     {
         $data = $this->sendRequest('performTransaction', [
-            "id" => random_int(100000000000, 999999999999),
-            "service_id" => $service_id,
-            "time" => time(),
-            "fields" => $fields,
+            'id' => random_int(100000000000, 999999999999),
+            'service_id' => $service_id,
+            'time' => time(),
+            'fields' => $fields,
         ]);
 
         if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
