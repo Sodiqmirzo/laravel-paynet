@@ -6,6 +6,11 @@ use Illuminate\Http\{Client\PendingRequest, Client\RequestException};
 use Illuminate\Support\Facades\Http;
 use Ramsey\Uuid\Uuid;
 use Uzbek\Paynet\{Exceptions\InvalidTransactionParameters,
+    Exceptions\PaynetException,
+    Exceptions\ProviderNotFound,
+    Exceptions\ServiceDataNotDefined,
+    Exceptions\SubscriberNotFound,
+    Exceptions\SystemError,
     Exceptions\TokenNotFound,
     Exceptions\TransactionNotFound,
     Exceptions\Unauthorized,
@@ -82,36 +87,31 @@ class Paynet
             'token' => $this->token,
         ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
 
-        $result = $res['result'];
+        $result = $res['result'] ?? null;
+        $response = $result['response'] ?? null;
         $error = $res['error'] ?? null;
 
         if ($error && $error['code'] === -10000) {
-            throw new UserInvalid($error['message']);
+            throw new UserInvalid($error['message'], $error['code']);
         }
 
         if ($error && $error['code'] === -12007) {
-            throw new TransactionNotFound($error['message']);
-        }
-
-        if (isset($result['transactionId'], $result['status'], $result['response'])
-            && $result['transactionId'] === null && $result['status'] === '1' && $result['response'] === null) {
-            throw new InvalidTransactionParameters();
+            throw new TransactionNotFound($error['message'], $error['code']);
         }
 
         if ($error && $error['code'] === -12007) {
-            throw new TransactionNotFound($error['message']);
+            throw new TransactionNotFound($error['message'], $error['code']);
         }
 
         if ($error && $error['message']) {
-            throw new \Exception($error['message']);
+            throw new PaynetException($error['message'], $error['code']);
         }
 
-        if (isset($result)) {
-            return $result;
+        if ($result !== null && $response === null && isset($result['status'])) {
+            throw new PaynetException($result['statusText'], $result['status']);
         }
 
-
-        return $res;
+        return $result;
     }
 
     private function generateUuid(): string
@@ -121,12 +121,21 @@ class Paynet
         return $this->last_uid;
     }
 
+    /**
+     * @param $res
+     * @param $e
+     * @throws TransactionNotFound
+     * @throws Unauthorized
+     * @throws UserInvalid
+     */
     private static function catchHttpRequestError($res, $e)
     {
-        if ($res['error']['code'] === -9999) {
-            return new Unauthorized();
-        }
-        throw $e;
+        throw match ($res['error']['code']) {
+            -9999 => new Unauthorized($res['error']['message']),
+            -10000 => new UserInvalid($res['error']['message']),
+            -12007 => new TransactionNotFound($res['error']['message']),
+            default => $e,
+        };
     }
 
     public function getServices(int $last_update_date): UserInvalid|ServicesResponse
