@@ -134,7 +134,7 @@ class Paynet
         };
     }
 
-    public function getServices(int $last_update_date): UserInvalid|ServicesResponse
+    public function getServices(int $last_update_date): ServicesResponse
     {
         $data = $this->sendRequest('getServices', [
             'last_updated_at' => $last_update_date,
@@ -143,7 +143,13 @@ class Paynet
         return new ServicesResponse($data['last_update_date'], $data['categories']);
     }
 
-    public function changePassword(string $old_password, string $new_password): UserInvalid|LoginResponse
+    /**
+     * @throws UserInvalid
+     * @throws TransactionNotFound
+     * @throws RequestException
+     * @throws InvalidTransactionParameters
+     */
+    public function changePassword(string $old_password, string $new_password): LoginResponse
     {
         $data = $this->sendRequest('changePassword', [
             'old_password' => $old_password,
