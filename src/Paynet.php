@@ -2,38 +2,28 @@
 
 namespace Uzbek\Paynet;
 
-use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\{Client\PendingRequest, Client\RequestException};
 use Illuminate\Support\Facades\Http;
 use Ramsey\Uuid\Uuid;
-use Uzbek\Paynet\Exceptions\InvalidTransactionParameters;
-use Uzbek\Paynet\Exceptions\TokenNotFound;
-use Uzbek\Paynet\Exceptions\TransactionNotFound;
-use Uzbek\Paynet\Exceptions\Unauthorized;
-use Uzbek\Paynet\Exceptions\UserInvalid;
-use Uzbek\Paynet\Response\CancelTransactionResponse;
-use Uzbek\Paynet\Response\DetailedReportByServiceId;
-use Uzbek\Paynet\Response\DetailReportByPeriodResponse;
-use Uzbek\Paynet\Response\LoginResponse;
-use Uzbek\Paynet\Response\PerformTransactionResponse;
-use Uzbek\Paynet\Response\ServicesResponse;
+use Uzbek\Paynet\{Exceptions\InvalidTransactionParameters,
+    Exceptions\TokenNotFound,
+    Exceptions\TransactionNotFound,
+    Exceptions\Unauthorized,
+    Exceptions\UserInvalid,
+    Response\LoginResponse,
+    Response\ServicesResponse
+};
 
 class Paynet
 {
     protected mixed $config;
-
-    private ?string $token = null;
-
-    private ?string $last_uid = null;
-
-    private int $tokenLifeTime = 60 * 60 * 24;
-
     protected string $username;
-
     protected string $password;
-
     protected string $terminalId;
-
     protected PendingRequest $client;
+    private ?string $token = null;
+    private ?string $last_uid = null;
+    private int $tokenLifeTime = 60 * 60 * 24;
 
     public function __construct()
     {
@@ -43,7 +33,7 @@ class Paynet
         $this->terminalId = $this->config['terminal_id'];
         $this->tokenLifeTime = $this->config['token_life_time'] ?? 0;
 
-        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '').'://'.($this->config['proxy_host'] ?? '').':'.($this->config['proxy_port'] ?? '')) ?? '';
+        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '') . '://' . ($this->config['proxy_host'] ?? '') . ':' . ($this->config['proxy_port'] ?? '')) ?? '';
         $options = is_string($proxy_url) && str_contains($proxy_url, '://') && strlen($proxy_url) > 12 ? ['proxy' => $proxy_url] : [];
 
         $this->client = Http::baseUrl($this->config['base_url'])->withHeaders([
@@ -52,19 +42,6 @@ class Paynet
         ])->withOptions($options);
 
         $this->login();
-    }
-
-    public function getServices(int $last_update_date): UserInvalid|ServicesResponse
-    {
-        $data = $this->sendRequest('getServices', [
-            'last_updated_at' => $last_update_date,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new ServicesResponse($data['result']['last_update_date'], $data['result']['categories']);
     }
 
     public function login(): void
@@ -76,230 +53,21 @@ class Paynet
                 'terminal_id' => $this->terminalId,
             ]);
 
-            if (empty($data['result']['token'])) {
+            if (empty($data['token'])) {
                 throw new TokenNotFound('Token not found');
             }
 
-            return $data['result']['token'];
+            return $data['token'];
         });
     }
 
-    public function changePassword(string $old_password, string $new_password): UserInvalid|LoginResponse
-    {
-        $data = $this->sendRequest('changePassword', [
-            'old_password' => $old_password,
-            'new_password' => $new_password,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new LoginResponse(
-            $data['result']['agentId'],
-            $data['result']['terminalId'],
-            $data['result']['userId'],
-            $data['result']['userLogin'],
-            $data['result']['token']
-        );
-    }
-
     /**
+     * @throws UserInvalid
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws InvalidTransactionParameters
      * @throws \Exception
      */
-    public function performTransaction(string $service_id, array $fields)
-    {
-        $data = $this->sendRequest('performTransaction', [
-            "id" => random_int(100000000000, 999999999999),
-            "service_id" => $service_id,
-            "time" => time(),
-            "fields" => $fields,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        if (isset($data['result']['transactionId'], $data['result']['status'], $data['result']['response'])
-            && is_null($data['result']['transactionId']) && $data['result']['status'] === '1' && is_null($data['result']['response'])) {
-            return new InvalidTransactionParameters();
-        }
-
-        return new PerformTransactionResponse(
-            $data['result']['transactionId'],
-            $data['result']['status'],
-            $data['result']['statusText'],
-            $data['result']['time'],
-            $data['result']['response']
-        );
-    }
-
-    public function checkTransactionByTransactionId(int $transaction_id, string $time): PerformTransactionResponse|UserInvalid
-    {
-        $data = $this->sendRequest('checkTransaction', [
-            'transaction_id' => $transaction_id,
-            'time' => $time,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new PerformTransactionResponse(
-            $data['result']['transactionId'],
-            $data['result']['status'],
-            $data['result']['statusText'],
-            $data['result']['time'],
-            $data['result']['response']
-        );
-    }
-
-    public function checkTransactionByAgentId(int $id): PerformTransactionResponse|TransactionNotFound
-    {
-        $data = $this->sendRequest('checkTransactionByAgentId', [
-            'id' => $id,
-        ]);
-
-        if (isset($data['error']) && $data['error']['code'] === -12007) {
-            return new TransactionNotFound();
-        }
-
-        return new PerformTransactionResponse(
-            $data['result']['transactionId'],
-            $data['result']['status'],
-            $data['result']['statusText'],
-            $data['result']['time'],
-            $data['result']['response']
-        );
-    }
-
-    public function detailedReportByPeriod(string $start_date, string $end_date): UserInvalid|DetailReportByPeriodResponse
-    {
-        $data = $this->sendRequest('summaryReportByDate', [
-            'start_date' => $start_date,
-            'end_date' => $end_date,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new DetailReportByPeriodResponse(
-            $data['result']['transactionCount'],
-            $data['result']['transactionSum'],
-            $data['result']['commissionFeeSum']
-        );
-    }
-
-    public function detailedReportById(string $beginId, string $endId, $service_id = null): UserInvalid|DetailReportByPeriodResponse
-    {
-        $data = $this->sendRequest('detailedReportById', [
-            'start_id' => $beginId,
-            'end_id' => $endId,
-            'service_id' => (string) $service_id,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new DetailReportByPeriodResponse(
-            $data['result']['transactionCount'],
-            $data['result']['transactionSum'],
-            $data['result']['commissionFeeSum']
-        );
-    }
-
-    public function detailedReportByServiceId(string $beginId, string $endId, int $service_id): UserInvalid|array
-    {
-        $data = $this->sendRequest('detailedReportById', [
-            'start_id' => $beginId,
-            'end_id' => $endId,
-            'service_id' => $service_id,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        $res = [];
-
-        foreach ($data['result'] as $item) {
-            $res[] = new DetailedReportByServiceId(
-                $item['terminalId'],
-                $item['transactionId'],
-                $item['customerId'],
-                $item['amount'],
-                $item['commissionFee'],
-                $item['transactionStatusText'],
-                $item['statusTime'],
-                $item['status'],
-                $item['id'],
-            );
-        }
-
-        return $res;
-    }
-
-    public function cancelTransaction(string $transaction_id): CancelTransactionResponse|UserInvalid
-    {
-        $data = $this->sendRequest('cancelTransaction', [
-            'transaction_id' => $transaction_id,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        return new CancelTransactionResponse(
-            $data['result']['transactionId'],
-            $data['result']['status'],
-            $data['result']['statusText'],
-            $data['result']['time'],
-            $data['result']['response']
-        );
-    }
-
-    public function reportTransaction(string $start_date, string $end_date, int $service_id, int $page = 0, int $count = 20): UserInvalid|array
-    {
-        $data = $this->sendRequest('detailedReportByDateTimeAndServiceId', [
-            'start_date' => $start_date,
-            'end_date' => $end_date,
-            'service_id' => $service_id,
-            'page' => $page,
-            'count' => $count,
-        ]);
-
-        if (isset($data['result']['error']) && $data['result']['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-
-        $res = [];
-
-        foreach ($data['result'] as $item) {
-            $res[] = new DetailedReportByServiceId(
-                $item['terminalId'],
-                $item['transactionId'],
-                $item['customerId'],
-                $item['amount'],
-                $item['commissionFee'],
-                $item['transactionStatusText'],
-                $item['statusTime'],
-                $item['status'],
-                $item['id'],
-            );
-        }
-
-        return $res;
-    }
-
-    public function getLogo(int $provider_id, int $size = 128)
-    {
-        $query = ['providerId' => $provider_id, 'size' => $size];
-
-        return $this->client->get('/gw/getLogo?'.http_build_query($query));
-    }
-
     public function sendRequest($method, $params = [])
     {
         $url = '/gw/transaction';
@@ -312,7 +80,36 @@ class Paynet
             'params' => $params,
             'id' => $uid,
             'token' => $this->token,
-        ])->throw(fn ($r, $e) => self::catchHttpRequestError($r, $e))->json();
+        ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
+
+        $result = $res['result'];
+        $error = $res['error'] ?? null;
+
+        if ($error && $error['code'] === -10000) {
+            throw new UserInvalid($error['message']);
+        }
+
+        if ($error && $error['code'] === -12007) {
+            throw new TransactionNotFound($error['message']);
+        }
+
+        if (isset($result['transactionId'], $result['status'], $result['response'])
+            && $result['transactionId'] === null && $result['status'] === '1' && $result['response'] === null) {
+            throw new InvalidTransactionParameters();
+        }
+
+        if ($error && $error['code'] === -12007) {
+            throw new TransactionNotFound($error['message']);
+        }
+
+        if ($error && $error['message']) {
+            throw new \Exception($error['message']);
+        }
+
+        if (isset($result)) {
+            return $result;
+        }
+
 
         return $res;
     }
@@ -329,15 +126,171 @@ class Paynet
         if ($res['error']['code'] === -9999) {
             return new Unauthorized();
         }
-        /*if ($res['error']['code'] === -9999) {
-            return new Unauthorized();
-        }
-        if ($res['error']['code'] === -10000) {
-            return new UserInvalid();
-        }
-        if ($res['error']['code'] === -12007) {
-            return new TransactionNotFound();
-        }*/
         throw $e;
+    }
+
+    public function getServices(int $last_update_date): UserInvalid|ServicesResponse
+    {
+        $data = $this->sendRequest('getServices', [
+            'last_updated_at' => $last_update_date,
+        ]);
+
+        return new ServicesResponse($data['last_update_date'], $data['categories']);
+    }
+
+    public function changePassword(string $old_password, string $new_password): UserInvalid|LoginResponse
+    {
+        $data = $this->sendRequest('changePassword', [
+            'old_password' => $old_password,
+            'new_password' => $new_password,
+        ]);
+
+        return new LoginResponse(
+            $data['agentId'],
+            $data['terminalId'],
+            $data['userId'],
+            $data['userLogin'],
+            $data['token']
+        );
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public function performTransaction(string $service_id, array $fields)
+    {
+        return $this->sendRequest('performTransaction', [
+            "id" => random_int(100000000000, 999999999999),
+            "service_id" => $service_id,
+            "time" => time(),
+            "fields" => $fields,
+        ]);
+    }
+
+    /**
+     * @throws UserInvalid
+     * @throws TransactionNotFound
+     * @throws RequestException
+     * @throws InvalidTransactionParameters
+     */
+    public function checkTransactionByTransactionId(string $transaction_id, string $time)
+    {
+        return $this->sendRequest('checkTransaction', [
+            'transaction_id' => $transaction_id,
+            'time' => $time,
+        ]);
+    }
+
+    /**
+     * @throws UserInvalid
+     * @throws TransactionNotFound
+     * @throws RequestException
+     * @throws InvalidTransactionParameters
+     */
+    public function checkTransactionByAgentId(string $id)
+    {
+        return $this->sendRequest('checkTransactionByAgentId', [
+            'id' => $id,
+        ]);
+    }
+
+    /**
+     * @param string $start_date
+     * @param string $end_date
+     * @return array|mixed
+     * @throws InvalidTransactionParameters
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws UserInvalid
+     */
+    public function detailedReportByPeriod(string $start_date, string $end_date): mixed
+    {
+        return $this->sendRequest('summaryReportByDate', [
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+        ]);
+    }
+
+    /**
+     * @param string $beginId
+     * @param string $endId
+     * @param null $service_id
+     * @return array|mixed
+     * @throws InvalidTransactionParameters
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws UserInvalid
+     */
+    public function detailedReportById(string $beginId, string $endId, $service_id = null): mixed
+    {
+        return $this->sendRequest('detailedReportById', [
+            'start_id' => $beginId,
+            'end_id' => $endId,
+            'service_id' => (string)$service_id,
+        ]);
+    }
+
+    /**
+     * @param string $beginId
+     * @param string $endId
+     * @param string $service_id
+     * @return array|mixed
+     * @throws InvalidTransactionParameters
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws UserInvalid
+     */
+    public function detailedReportByServiceId(string $beginId, string $endId, string $service_id): mixed
+    {
+        return $this->sendRequest('detailedReportById', [
+            'start_id' => $beginId,
+            'end_id' => $endId,
+            'service_id' => $service_id,
+        ]);
+    }
+
+    /**
+     * @param string $transaction_id
+     * @return array|mixed
+     * @throws InvalidTransactionParameters
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws UserInvalid
+     */
+    public function cancelTransaction(string $transaction_id): mixed
+    {
+        return $this->sendRequest('cancelTransaction', [
+            'transaction_id' => $transaction_id,
+        ]);
+    }
+
+    /**
+     * @param string $start_date
+     * @param string $end_date
+     * @param string $service_id
+     * @param int $page
+     * @param int $count
+     * @return array|mixed
+     * @throws InvalidTransactionParameters
+     * @throws RequestException
+     * @throws TransactionNotFound
+     * @throws UserInvalid
+     */
+    public function reportTransaction(string $start_date, string $end_date, string $service_id, int $page = 0, int $count = 20): mixed
+    {
+        return $this->sendRequest('detailedReportByDateTimeAndServiceId', [
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+            'service_id' => $service_id,
+            'page' => $page,
+            'count' => $count,
+        ]);
+    }
+
+    public function getLogo(string $provider_id, int $size = 128)
+    {
+        $query = ['providerId' => $provider_id, 'size' => $size];
+
+        return $this->client->get('/gw/getLogo?' . http_build_query($query));
     }
 }
