@@ -2,28 +2,35 @@
 
 namespace Uzbek\Paynet;
 
-use Illuminate\Http\{Client\PendingRequest, Client\RequestException};
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Ramsey\Uuid\Uuid;
-use Uzbek\Paynet\{Exceptions\InvalidTransactionParameters,
-    Exceptions\PaynetException,
-    Exceptions\TokenNotFound,
-    Exceptions\TransactionNotFound,
-    Exceptions\Unauthorized,
-    Exceptions\UserInvalid,
-    Response\LoginResponse,
-    Response\ServicesResponse
-};
+use Uzbek\Paynet\Exceptions\InvalidTransactionParameters;
+use Uzbek\Paynet\Exceptions\PaynetException;
+use Uzbek\Paynet\Exceptions\TokenNotFound;
+use Uzbek\Paynet\Exceptions\TransactionNotFound;
+use Uzbek\Paynet\Exceptions\Unauthorized;
+use Uzbek\Paynet\Exceptions\UserInvalid;
+use Uzbek\Paynet\Response\LoginResponse;
+use Uzbek\Paynet\Response\ServicesResponse;
 
 class Paynet
 {
     protected mixed $config;
+
     protected string $username;
+
     protected string $password;
+
     protected string $terminalId;
+
     protected PendingRequest $client;
+
     private ?string $token = null;
+
     private ?string $last_uid = null;
+
     private int $tokenLifeTime = 60 * 60 * 24;
 
     public function __construct()
@@ -34,7 +41,7 @@ class Paynet
         $this->terminalId = $this->config['terminal_id'];
         $this->tokenLifeTime = $this->config['token_life_time'] ?? 0;
 
-        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '') . '://' . ($this->config['proxy_host'] ?? '') . ':' . ($this->config['proxy_port'] ?? '')) ?? '';
+        $proxy_url = $this->config['proxy_url'] ?? (($this->config['proxy_proto'] ?? '').'://'.($this->config['proxy_host'] ?? '').':'.($this->config['proxy_port'] ?? '')) ?? '';
         $options = is_string($proxy_url) && str_contains($proxy_url, '://') && strlen($proxy_url) > 12 ? ['proxy' => $proxy_url] : [];
 
         $this->client = Http::baseUrl($this->config['base_url'])->withHeaders([
@@ -81,7 +88,7 @@ class Paynet
             'params' => $params,
             'id' => $uid,
             'token' => $this->token,
-        ])->throw(fn($r, $e) => self::catchHttpRequestError($r, $e))->json();
+        ])->throw(fn ($r, $e) => self::catchHttpRequestError($r, $e))->json();
 
         $result = $res['result'] ?? null;
         $response = $result['response'] ?? null;
@@ -120,6 +127,7 @@ class Paynet
     /**
      * @param $res
      * @param $e
+     *
      * @throws TransactionNotFound
      * @throws Unauthorized
      * @throws UserInvalid
@@ -165,10 +173,10 @@ class Paynet
     public function performTransaction(string $service_id, array $fields)
     {
         return $this->sendRequest('performTransaction', [
-            "id" => random_int(100000000000, 999999999999),
-            "service_id" => $service_id,
-            "time" => time(),
-            "fields" => $fields,
+            'id' => random_int(100000000000, 999999999999),
+            'service_id' => $service_id,
+            'time' => time(),
+            'fields' => $fields,
         ]);
     }
 
@@ -200,9 +208,10 @@ class Paynet
     }
 
     /**
-     * @param string $start_date
-     * @param string $end_date
+     * @param  string  $start_date
+     * @param  string  $end_date
      * @return array|mixed
+     *
      * @throws InvalidTransactionParameters
      * @throws RequestException
      * @throws TransactionNotFound
@@ -217,10 +226,11 @@ class Paynet
     }
 
     /**
-     * @param string $beginId
-     * @param string $endId
-     * @param null $service_id
+     * @param  string  $beginId
+     * @param  string  $endId
+     * @param  null  $service_id
      * @return array|mixed
+     *
      * @throws InvalidTransactionParameters
      * @throws RequestException
      * @throws TransactionNotFound
@@ -231,15 +241,16 @@ class Paynet
         return $this->sendRequest('detailedReportById', [
             'start_id' => $beginId,
             'end_id' => $endId,
-            'service_id' => (string)$service_id,
+            'service_id' => (string) $service_id,
         ]);
     }
 
     /**
-     * @param string $beginId
-     * @param string $endId
-     * @param string $service_id
+     * @param  string  $beginId
+     * @param  string  $endId
+     * @param  string  $service_id
      * @return array|mixed
+     *
      * @throws InvalidTransactionParameters
      * @throws RequestException
      * @throws TransactionNotFound
@@ -255,8 +266,9 @@ class Paynet
     }
 
     /**
-     * @param string $transaction_id
+     * @param  string  $transaction_id
      * @return array|mixed
+     *
      * @throws InvalidTransactionParameters
      * @throws RequestException
      * @throws TransactionNotFound
@@ -270,12 +282,13 @@ class Paynet
     }
 
     /**
-     * @param string $start_date
-     * @param string $end_date
-     * @param string $service_id
-     * @param int $page
-     * @param int $count
+     * @param  string  $start_date
+     * @param  string  $end_date
+     * @param  string  $service_id
+     * @param  int  $page
+     * @param  int  $count
      * @return array|mixed
+     *
      * @throws InvalidTransactionParameters
      * @throws RequestException
      * @throws TransactionNotFound
@@ -296,6 +309,6 @@ class Paynet
     {
         $query = ['providerId' => $provider_id, 'size' => $size];
 
-        return $this->client->get('/gw/getLogo?' . http_build_query($query));
+        return $this->client->get('/gw/getLogo?'.http_build_query($query));
     }
 }
