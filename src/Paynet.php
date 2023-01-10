@@ -102,7 +102,7 @@ class Paynet
             throw new TransactionNotFound($error['message'], $error['code']);
         }
 
-        if ($error && $error['message']) {
+        if ($error) {
             throw new PaynetException($error['message'], $error['code']);
         }
 
