@@ -103,7 +103,7 @@ class Paynet
         }
 
         if ($error) {
-            throw new PaynetException($error['message'], $error['code']);
+            throw new PaynetException($error['message'] ?? 'Serverda xatolik.', $error['code']);
         }
 
         if ($result !== null && $response === null && isset($result['status'])) {
