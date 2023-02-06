@@ -15,7 +15,6 @@ class PerformTransactionResponse extends Data
         public string $labelRu,
         public string $labelUz,
         public string $value,
-    )
-    {
+    ) {
     }
 }
